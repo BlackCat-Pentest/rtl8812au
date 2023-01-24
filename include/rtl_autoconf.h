@@ -22,15 +22,16 @@
  */
 #define AUTOCONF_INCLUDED
 #define RTL871X_MODULE_NAME "8812AU"
+
+/*
 #ifndef DRV_NAME
 #define DRV_NAME "rtl8812au"
 #endif
+*/
 
 #define CONFIG_USB_HCI
 
 #define PLATFORM_LINUX
-
-/* #define CONFIG_IOCTL_CFG80211 1 */
 
 #ifdef CONFIG_IOCTL_CFG80211
 	/* #define RTW_USE_CFG80211_STA_EVENT */ /* Indecate new sta asoc through cfg80211_new_sta */
@@ -54,10 +55,11 @@
 
 #define CONFIG_XMIT_ACK
 #ifdef CONFIG_XMIT_ACK
-	#define CONFIG_ACTIVE_KEEP_ALIVE_CHECK
+	//#define CONFIG_ACTIVE_KEEP_ALIVE_CHECK
 #endif
 
 #define CONFIG_80211N_HT
+
 #define CONFIG_80211AC_VHT
 #ifdef CONFIG_80211AC_VHT
 	#ifndef CONFIG_80211N_HT
@@ -83,7 +85,7 @@
 
 #define CONFIG_RECV_REORDERING_CTRL	1
 
-#define CONFIG_DFS	1
+#define CONFIG_DFS	0
 
  /* #define CONFIG_SUPPORT_USB_INT */
  #ifdef CONFIG_SUPPORT_USB_INT
@@ -118,6 +120,8 @@
 	#endif /* CONFIG_LPS_LCLK */
 #endif /*CONFIG_POWER_SAVING*/
 	/*#define CONFIG_ANTENNA_DIVERSITY*/
+
+
 
 	/* #define CONFIG_CONCURRENT_MODE 1 */
 	#ifdef CONFIG_CONCURRENT_MODE
@@ -166,6 +170,7 @@
 	/*#define CONFIG_P2P_INVITE_IOT*/
 #endif
 
+/* Added by Kurt 20110511 */
 #ifdef CONFIG_TDLS
 	#define CONFIG_TDLS_DRIVER_SETUP
 /*	#ifndef CONFIG_WFD */
@@ -282,9 +287,11 @@
 	#define MP_DRIVER 0
 #endif
 
+
 /*
  * Platform  Related Config
-*/
+ */
+
 
 #if defined(CONFIG_PLATFORM_ACTIONS_ATM702X)
 	#ifdef CONFIG_USB_TX_AGGREGATION
@@ -306,18 +313,23 @@
 	#endif
 #endif /* !CONFIG_BT_COEXIST */
 
+
+
 #ifdef CONFIG_USB_TX_AGGREGATION
 /* #define	CONFIG_TX_EARLY_MODE */
 #endif
 
+#define	RTL8188E_EARLY_MODE_PKT_NUM_10	0
+
+
 /*
  * Debug Related Config
  */
-#define DBG 0
+#define DBG	0
 
 #define CONFIG_PROC_DEBUG
 
-/* #define DBG_CONFIG_ERROR_DETECT */
+#define DBG_CONFIG_ERROR_DETECT
 /* #define DBG_CONFIG_ERROR_DETECT_INT */
 /* #define DBG_CONFIG_ERROR_RESET */
 
@@ -335,6 +347,10 @@
 /* #define DBG_RX_SEQ */
 /* #define DBG_RX_SIGNAL_DISPLAY_PROCESSING */
 /* #define DBG_RX_SIGNAL_DISPLAY_SSID_MONITORED "jeff-ap" */
+
+#define DBG_TX_POWER_IDX 1
+#define DBG_PG_TXPWR_READ 1
+#define DBG_HIGHEST_RATE_BMP_BW_CHANGE 1
 
 /* #define DBG_SHOW_MCUFWDL_BEFORE_51_ENABLE */
 /* #define DBG_ROAMING_TEST */

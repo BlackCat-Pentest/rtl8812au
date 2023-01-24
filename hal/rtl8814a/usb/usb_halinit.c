@@ -1665,7 +1665,7 @@ HAL_INIT_PROFILE_TAG(HAL_INIT_STAGES_MISC31);
 		for(i=0; i<6; i++)
 		{			
 #ifdef CONFIG_CONCURRENT_MODE
-			if(Adapter->hw_port == HW_PORT1)
+			if(Adapter->iface_type == IFACE_PORT1)
 				mac_addr[i] = rtw_read8(Adapter, REG_MACID1+i);
 			else
 #endif
@@ -2179,10 +2179,6 @@ u8 SetHwReg8814AU(PADAPTER Adapter, u8 variable, u8* val)
 		break;
 
 	case HW_VAR_USB_MODE:
-#ifdef CONFIG_USB_DEBUG
-		dev_info(&pdvobjpriv->pusbdev->dev,
-			 DRV_NAME " switch sethwreg HW_VAR_USB_MODE\n");
-#endif
 		/* U2 to U3 */
 		if (registry_par->switch_usb_mode == 1) {
 			if (IS_HIGH_SPEED_USB(Adapter)) {

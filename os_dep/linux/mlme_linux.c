@@ -75,9 +75,13 @@ void rtw_os_indicate_connect(_adapter *adapter)
 #endif
 		rtw_netif_carrier_on(adapter->pnetdev);
 
+	if (adapter->pid[2] != 0)
+		rtw_signal_process(adapter->pid[2], SIGALRM);
+
 #ifdef RTK_DMP_PLATFORM
 	_set_workitem(&adapter->mlmepriv.Linkup_workitem);
 #endif
+
 
 }
 
@@ -400,7 +404,7 @@ int hostapd_mode_init(_adapter *padapter)
 	mac[4] = 0x11;
 	mac[5] = 0x12;
 
-	_rtw_memcpy(pnetdev->dev_addr, mac, ETH_ALEN);
+	dev_addr_set(pnetdev, mac);
 
 
 	rtw_netif_carrier_off(pnetdev);

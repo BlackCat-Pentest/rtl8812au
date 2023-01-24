@@ -13,7 +13,6 @@
  *
  *****************************************************************************/
 
-
 #define _OSDEP_SERVICE_C_
 
 #include <drv_types.h>
@@ -27,9 +26,8 @@ atomic_t _malloc_size = ATOMIC_INIT(0);
 #endif
 #endif /* DBG_MEMORY_LEAK */
 
-/* This is to fix get_ds() type mismatch on kernels above 5.1.x */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0))
-	#define get_ds() KERNEL_DS
+#if defined(MODULE_IMPORT_NS)
+MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
 #endif
 
 #if defined(PLATFORM_LINUX)
@@ -1218,11 +1216,6 @@ void _rtw_init_sema(_sema	*sema, int init_val)
 #ifdef PLATFORM_FREEBSD
 	sema_init(sema, init_val, "rtw_drv");
 #endif
-#ifdef PLATFORM_OS_XP
-
-	KeInitializeSemaphore(sema, init_val,  SEMA_UPBND); /* count=0; */
-
-#endif
 
 #ifdef PLATFORM_OS_CE
 	if (*sema == NULL)
@@ -1253,11 +1246,6 @@ void _rtw_up_sema(_sema	*sema)
 #ifdef PLATFORM_FREEBSD
 	sema_post(sema);
 #endif
-#ifdef PLATFORM_OS_XP
-
-	KeReleaseSemaphore(sema, IO_NETWORK_INCREMENT, 1,  FALSE);
-
-#endif
 
 #ifdef PLATFORM_OS_CE
 	ReleaseSemaphore(*sema,  1,  NULL);
@@ -1279,13 +1267,6 @@ u32 _rtw_down_sema(_sema *sema)
 	sema_wait(sema);
 	return  _SUCCESS;
 #endif
-#ifdef PLATFORM_OS_XP
-
-	if (STATUS_SUCCESS == KeWaitForSingleObject(sema, Executive, KernelMode, TRUE, NULL))
-		return  _SUCCESS;
-	else
-		return _FAIL;
-#endif
 
 #ifdef PLATFORM_OS_CE
 	if (WAIT_OBJECT_0 == WaitForSingleObject(*sema, INFINITE))
@@ -1295,10 +1276,18 @@ u32 _rtw_down_sema(_sema *sema)
 #endif
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
 inline void thread_exit(_completion *comp)
+#else
+inline void kthread_thread_exit(_completion *comp)
+#endif
 {
 #ifdef PLATFORM_LINUX
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
 	complete_and_exit(comp, 0);
+#else
+	kthread_complete_and_exit(comp, 0);
+#endif
 #endif
 
 #ifdef PLATFORM_FREEBSD
@@ -1307,10 +1296,6 @@ inline void thread_exit(_completion *comp)
 
 #ifdef PLATFORM_OS_CE
 	ExitThread(STATUS_SUCCESS);
-#endif
-
-#ifdef PLATFORM_OS_XP
-	PsTerminateSystemThread(STATUS_SUCCESS);
 #endif
 }
 
@@ -1347,11 +1332,6 @@ void	_rtw_mutex_init(_mutex *pmutex)
 #ifdef PLATFORM_FREEBSD
 	mtx_init(pmutex, "", NULL, MTX_DEF | MTX_RECURSE);
 #endif
-#ifdef PLATFORM_OS_XP
-
-	KeInitializeMutex(pmutex, 0);
-
-#endif
 
 #ifdef PLATFORM_OS_CE
 	*pmutex =  CreateMutex(NULL, _FALSE, NULL);
@@ -1374,10 +1354,6 @@ void	_rtw_mutex_free(_mutex *pmutex)
 
 #endif
 
-#ifdef PLATFORM_OS_XP
-
-#endif
-
 #ifdef PLATFORM_OS_CE
 
 #endif
@@ -1394,11 +1370,6 @@ void	_rtw_spinlock_init(_lock *plock)
 #ifdef PLATFORM_FREEBSD
 	mtx_init(plock, "", NULL, MTX_DEF | MTX_RECURSE);
 #endif
-#ifdef PLATFORM_WINDOWS
-
-	NdisAllocateSpinLock(plock);
-
-#endif
 
 }
 
@@ -1406,12 +1377,6 @@ void	_rtw_spinlock_free(_lock *plock)
 {
 #ifdef PLATFORM_FREEBSD
 	mtx_destroy(plock);
-#endif
-
-#ifdef PLATFORM_WINDOWS
-
-	NdisFreeSpinLock(plock);
-
 #endif
 
 }
@@ -1447,11 +1412,6 @@ void	_rtw_spinlock(_lock	*plock)
 #ifdef PLATFORM_FREEBSD
 	mtx_lock(plock);
 #endif
-#ifdef PLATFORM_WINDOWS
-
-	NdisAcquireSpinLock(plock);
-
-#endif
 
 }
 
@@ -1466,11 +1426,6 @@ void	_rtw_spinunlock(_lock *plock)
 #ifdef PLATFORM_FREEBSD
 	mtx_unlock(plock);
 #endif
-#ifdef PLATFORM_WINDOWS
-
-	NdisReleaseSpinLock(plock);
-
-#endif
 }
 
 
@@ -1484,11 +1439,6 @@ void	_rtw_spinlock_ex(_lock	*plock)
 #endif
 #ifdef PLATFORM_FREEBSD
 	mtx_lock(plock);
-#endif
-#ifdef PLATFORM_WINDOWS
-
-	NdisDprAcquireSpinLock(plock);
-
 #endif
 
 }
@@ -2101,6 +2051,225 @@ inline bool ATOMIC_INC_UNLESS(ATOMIC_T *v, int u)
 #endif
 }
 
+#ifdef PLATFORM_LINUX
+/*
+* Open a file with the specific @param path, @param flag, @param mode
+* @param fpp the pointer of struct file pointer to get struct file pointer while file opening is success
+* @param path the path of the file to open
+* @param flag file operation flags, please refer to linux document
+* @param mode please refer to linux document
+* @return Linux specific error code
+*/
+static int openFile(struct file **fpp, const char *path, int flag, int mode)
+{
+	struct file *fp;
+
+	fp = filp_open(path, flag, mode);
+	if (IS_ERR(fp)) {
+		*fpp = NULL;
+		return PTR_ERR(fp);
+	} else {
+		*fpp = fp;
+		return 0;
+	}
+}
+
+/*
+* Close the file with the specific @param fp
+* @param fp the pointer of struct file to close
+* @return always 0
+*/
+static int closeFile(struct file *fp)
+{
+	filp_close(fp, NULL);
+	return 0;
+}
+
+static int readFile(struct file *fp, char *buf, int len)
+{
+	int rlen = 0, sum = 0;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
+	if (!(fp->f_mode & FMODE_CAN_READ))
+#else
+	if (!fp->f_op || !fp->f_op->read)
+#endif
+		return -EPERM;
+
+	while (sum < len) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0))
+		rlen = kernel_read(fp, buf + sum, len - sum, &fp->f_pos);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
+		rlen = __vfs_read(fp, buf + sum, len - sum, &fp->f_pos);
+#else
+		rlen = fp->f_op->read(fp, buf + sum, len - sum, &fp->f_pos);
+#endif
+		if (rlen > 0)
+			sum += rlen;
+		else if (0 != rlen)
+			return rlen;
+		else
+			break;
+	}
+
+	return  sum;
+
+}
+
+static int writeFile(struct file *fp, char *buf, int len)
+{
+	int wlen = 0, sum = 0;
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
+	if (!(fp->f_mode & FMODE_CAN_WRITE))
+#else
+	if (!fp->f_op || !fp->f_op->write)
+#endif
+		return -EPERM;
+
+	while (sum < len) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0))
+		wlen = kernel_write(fp, buf + sum, len - sum, &fp->f_pos);
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0))
+		wlen = __vfs_write(fp, buf + sum, len - sum, &fp->f_pos);
+#else
+		wlen = fp->f_op->write(fp, buf + sum, len - sum, &fp->f_pos);
+#endif
+		if (wlen > 0)
+			sum += wlen;
+		else if (0 != wlen)
+			return wlen;
+		else
+			break;
+	}
+
+	return sum;
+
+}
+
+/*
+* Test if the specifi @param path is a file and readable
+* If readable, @param sz is got
+* @param path the path of the file to test
+* @return Linux specific error code
+*/
+static int isFileReadable(const char *path, u32 *sz)
+{
+	struct file *fp;
+	int ret = 0;
+#ifdef set_fs
+	mm_segment_t oldfs;
+#endif
+	char buf;
+
+	fp = filp_open(path, O_RDONLY, 0);
+	if (IS_ERR(fp))
+		ret = PTR_ERR(fp);
+	else {
+#ifdef set_fs
+		oldfs = get_fs();
+		set_fs(KERNEL_DS);
+#endif
+
+		if (1 != readFile(fp, &buf, 1))
+			ret = PTR_ERR(fp);
+
+		if (ret == 0 && sz) {
+			#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
+			*sz = i_size_read(fp->f_path.dentry->d_inode);
+			#else
+			*sz = i_size_read(fp->f_dentry->d_inode);
+			#endif
+		}
+#ifdef set_fs
+		set_fs(oldfs);
+#endif
+		filp_close(fp, NULL);
+	}
+	return ret;
+}
+
+/*
+* Open the file with @param path and retrive the file content into memory starting from @param buf for @param sz at most
+* @param path the path of the file to open and read
+* @param buf the starting address of the buffer to store file content
+* @param sz how many bytes to read at most
+* @return the byte we've read, or Linux specific error code
+*/
+static int retriveFromFile(const char *path, u8 *buf, u32 sz)
+{
+	int ret = -1;
+#ifdef set_fs
+	mm_segment_t oldfs;
+#endif
+	struct file *fp;
+
+	if (path && buf) {
+		ret = openFile(&fp, path, O_RDONLY, 0);
+		if (0 == ret) {
+			RTW_INFO("%s openFile path:%s fp=%p\n", __FUNCTION__, path , fp);
+#ifdef set_fs
+			oldfs = get_fs();
+			set_fs(KERNEL_DS);
+			ret = readFile(fp, buf, sz);
+			set_fs(oldfs);
+#else
+			ret = readFile(fp, buf, sz);
+#endif
+			closeFile(fp);
+
+			RTW_INFO("%s readFile, ret:%d\n", __FUNCTION__, ret);
+
+		} else
+			RTW_INFO("%s openFile path:%s Fail, ret:%d\n", __FUNCTION__, path, ret);
+	} else {
+		RTW_INFO("%s NULL pointer\n", __FUNCTION__);
+		ret =  -EINVAL;
+	}
+	return ret;
+}
+
+/*
+* Open the file with @param path and wirte @param sz byte of data starting from @param buf into the file
+* @param path the path of the file to open and write
+* @param buf the starting address of the data to write into file
+* @param sz how many bytes to write at most
+* @return the byte we've written, or Linux specific error code
+*/
+static int storeToFile(const char *path, u8 *buf, u32 sz)
+{
+	int ret = 0;
+#ifdef set_fs
+	mm_segment_t oldfs;
+#endif
+	struct file *fp;
+
+	if (path && buf) {
+		ret = openFile(&fp, path, O_CREAT | O_WRONLY, 0666);
+		if (0 == ret) {
+			RTW_INFO("%s openFile path:%s fp=%p\n", __FUNCTION__, path , fp);
+#ifdef set_fs
+			oldfs = get_fs();
+			set_fs(KERNEL_DS);
+			ret = writeFile(fp, buf, sz);
+			set_fs(oldfs);
+#else
+			ret = writeFile(fp, buf, sz);
+#endif
+			closeFile(fp);
+
+			RTW_INFO("%s writeFile, ret:%d\n", __FUNCTION__, ret);
+
+		} else
+			RTW_INFO("%s openFile path:%s Fail, ret:%d\n", __FUNCTION__, path, ret);
+	} else {
+		RTW_INFO("%s NULL pointer\n", __FUNCTION__);
+		ret =  -EINVAL;
+	}
+	return ret;
+}
+#endif /* PLATFORM_LINUX */
+
 /*
 * Test if the specifi @param path is a file and readable
 * @param path the path of the file to test
@@ -2108,8 +2277,15 @@ inline bool ATOMIC_INC_UNLESS(ATOMIC_T *v, int u)
 */
 int rtw_is_file_readable(const char *path)
 {
+#ifdef PLATFORM_LINUX
+	if (isFileReadable(path, NULL) == 0)
+		return _TRUE;
+	else
+		return _FALSE;
+#else
 	/* Todo... */
 	return _FALSE;
+#endif
 }
 
 /*
@@ -2120,8 +2296,15 @@ int rtw_is_file_readable(const char *path)
 */
 int rtw_is_file_readable_with_size(const char *path, u32 *sz)
 {
+#ifdef PLATFORM_LINUX
+	if (isFileReadable(path, sz) == 0)
+		return _TRUE;
+	else
+		return _FALSE;
+#else
 	/* Todo... */
 	return _FALSE;
+#endif
 }
 
 /*
@@ -2133,8 +2316,13 @@ int rtw_is_file_readable_with_size(const char *path, u32 *sz)
 */
 int rtw_retrieve_from_file(const char *path, u8 *buf, u32 sz)
 {
+#ifdef PLATFORM_LINUX
+	int ret = retriveFromFile(path, buf, sz);
+	return ret >= 0 ? ret : 0;
+#else
 	/* Todo... */
 	return 0;
+#endif
 }
 
 /*
@@ -2146,8 +2334,13 @@ int rtw_retrieve_from_file(const char *path, u8 *buf, u32 sz)
 */
 int rtw_store_to_file(const char *path, u8 *buf, u32 sz)
 {
+#ifdef PLATFORM_LINUX
+	int ret = storeToFile(path, buf, sz);
+	return ret >= 0 ? ret : 0;
+#else
 	/* Todo... */
 	return 0;
+#endif
 }
 
 #ifdef PLATFORM_LINUX
@@ -2163,6 +2356,13 @@ struct net_device *rtw_alloc_etherdev_with_old_priv(int sizeof_priv, void *old_p
 #endif
 	if (!pnetdev)
 		goto RETURN;
+
+
+	pnetdev->mtu = WLAN_MAX_ETHFRM_LEN;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+	pnetdev->min_mtu = WLAN_MIN_ETHFRM_LEN;
+	pnetdev->max_mtu = WLAN_DATA_MAXLEN;
+#endif
 
 	pnpi = netdev_priv(pnetdev);
 	pnpi->priv = old_priv;
@@ -2184,6 +2384,12 @@ struct net_device *rtw_alloc_etherdev(int sizeof_priv)
 #endif
 	if (!pnetdev)
 		goto RETURN;
+
+	pnetdev->mtu = WLAN_MAX_ETHFRM_LEN;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0))
+	pnetdev->min_mtu = WLAN_MIN_ETHFRM_LEN;
+	pnetdev->max_mtu = WLAN_DATA_MAXLEN;
+#endif
 
 	pnpi = netdev_priv(pnetdev);
 
@@ -2258,7 +2464,7 @@ int rtw_change_ifname(_adapter *padapter, const char *ifname)
 
 	rtw_init_netdev_name(pnetdev, ifname);
 
-	_rtw_memcpy(pnetdev->dev_addr, adapter_mac_addr(padapter), ETH_ALEN);
+	dev_addr_set(pnetdev, adapter_mac_addr(padapter));
 
 	if (rtnl_lock_needed)
 		ret = register_netdev(pnetdev);
@@ -2381,7 +2587,9 @@ u64 rtw_division64(u64 x, u64 y)
 inline u32 rtw_random32(void)
 {
 #ifdef PLATFORM_LINUX
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	return get_random_u32();
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
 	return prandom_u32();
 #elif (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18))
 	u32 random_int;

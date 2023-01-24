@@ -362,14 +362,13 @@ static void	_rtw_free_sta_recv_priv_lock(struct sta_recv_priv *psta_recvpriv)
 
 	_rtw_spinlock_free(&(psta_recvpriv->defrag_q.lock));
 
+
 }
 
-void rtw_mfree_stainfo(struct sta_info *psta);
 void rtw_mfree_stainfo(struct sta_info *psta)
 {
 
-	if (&psta->lock != NULL)
-		_rtw_spinlock_free(&psta->lock);
+	_rtw_spinlock_free(&psta->lock);
 
 	_rtw_free_sta_xmit_priv_lock(&psta->sta_xmitpriv);
 	_rtw_free_sta_recv_priv_lock(&psta->sta_recvpriv);
@@ -377,12 +376,12 @@ void rtw_mfree_stainfo(struct sta_info *psta)
 }
 
 /* this function is used to free the memory of lock || sema for all stainfos */
-void rtw_mfree_all_stainfo(struct sta_priv *pstapriv);
 void rtw_mfree_all_stainfo(struct sta_priv *pstapriv)
 {
 	_irqL	 irqL;
 	_list	*plist, *phead;
 	struct sta_info *psta = NULL;
+
 
 	_enter_critical_bh(&pstapriv->sta_hash_lock, &irqL);
 
@@ -397,6 +396,7 @@ void rtw_mfree_all_stainfo(struct sta_priv *pstapriv)
 	}
 
 	_exit_critical_bh(&pstapriv->sta_hash_lock, &irqL);
+
 
 }
 
@@ -474,6 +474,7 @@ u32	_rtw_free_sta_priv(struct	sta_priv *pstapriv)
 	return _SUCCESS;
 }
 
+
 static void rtw_init_recv_timer(struct recv_reorder_ctrl *preorder_ctrl)
 {
 	_adapter *padapter = preorder_ctrl->padapter;
@@ -495,6 +496,7 @@ struct	sta_info *rtw_alloc_stainfo(struct	sta_priv *pstapriv, const u8 *hwaddr)
 	int i = 0;
 	u16  wRxSeqInitialValue = 0xffff;
 
+
 	pfree_sta_queue = &pstapriv->free_sta_queue;
 
 	/* _enter_critical_bh(&(pfree_sta_queue->lock), &irqL); */
@@ -504,6 +506,8 @@ struct	sta_info *rtw_alloc_stainfo(struct	sta_priv *pstapriv, const u8 *hwaddr)
 	} else {
 		psta = LIST_CONTAINOR(get_next(&pfree_sta_queue->queue), struct sta_info, list);
 
+		if (!psta)
+			goto exit;
 		rtw_list_delete(&(psta->list));
 
 		/* _exit_critical_bh(&(pfree_sta_queue->lock), &irqL); */
@@ -514,6 +518,7 @@ struct	sta_info *rtw_alloc_stainfo(struct	sta_priv *pstapriv, const u8 *hwaddr)
 		_rtw_memcpy(psta->cmn.mac_addr, hwaddr, ETH_ALEN);
 
 		index = wifi_mac_hash(hwaddr);
+
 
 		if (index >= NUM_STA) {
 			psta = NULL;
@@ -569,6 +574,7 @@ struct	sta_info *rtw_alloc_stainfo(struct	sta_priv *pstapriv, const u8 *hwaddr)
 			rtw_init_recv_timer(preorder_ctrl);
 		}
 
+
 		/* init for DM */
 		psta->cmn.rssi_stat.rssi = (-1);
 		psta->cmn.rssi_stat.rssi_cck = (-1);
@@ -588,11 +594,13 @@ exit:
 
 	_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
 
+
 	if (psta)
 		rtw_mi_update_iface_status(&(pstapriv->padapter->mlmepriv), 0);
 
 	return psta;
 }
+
 
 /* using pstapriv->sta_hash_lock to protect */
 u32	rtw_free_stainfo(_adapter *padapter , struct sta_info *psta)
@@ -637,6 +645,7 @@ u32	rtw_free_stainfo(_adapter *padapter , struct sta_info *psta)
 	_exit_critical_bh(&psta->lock, &irqL0);
 
 	pfree_sta_queue = &pstapriv->free_sta_queue;
+
 
 	pstaxmitpriv = &psta->sta_xmitpriv;
 
@@ -692,6 +701,7 @@ u32	rtw_free_stainfo(_adapter *padapter , struct sta_info *psta)
 	rtw_os_wake_queue_at_free_stainfo(padapter, pending_qcnt);
 
 	_exit_critical_bh(&pxmitpriv->lock, &irqL0);
+
 
 	/* re-init sta_info; 20061114 */ /* will be init in alloc_stainfo */
 	/* _rtw_init_sta_xmit_priv(&psta->sta_xmitpriv); */
@@ -777,11 +787,6 @@ u32	rtw_free_stainfo(_adapter *padapter , struct sta_info *psta)
 	psta->has_legacy_ac = 0;
 
 #ifdef CONFIG_NATIVEAP_MLME
-
-	if (psta->cmn.aid > 31) {
-		pr_err("***** psta->aid (%d) out of bounds\n", psta->cmn.aid);
-		return _FAIL;
-	}
 
 	if (pmlmeinfo->state == _HW_STATE_AP_) {
 		rtw_tim_map_clear(padapter, pstapriv->sta_dz_bitmap, psta->cmn.aid);

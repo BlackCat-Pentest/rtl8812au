@@ -728,7 +728,11 @@ void	expire_timeout_chk(_adapter *padapter)
 
 			RTW_INFO(FUNC_ADPT_FMT" asoc expire "MAC_FMT", state=0x%x\n"
 				, FUNC_ADPT_ARG(padapter), MAC_ARG(psta->cmn.mac_addr), psta->state);
+			#ifdef CONFIG_ACTIVE_KEEP_ALIVE_CHECK
 			updated |= ap_free_sta(padapter, psta, _FALSE, WLAN_REASON_DEAUTH_LEAVING, _FALSE);
+			#else
+			updated |= ap_free_sta(padapter, psta, _FALSE, WLAN_REASON_DEAUTH_LEAVING, _TRUE);
+			#endif
 			#ifdef CONFIG_RTW_MESH
 			if (MLME_IS_MESH(padapter))
 				rtw_mesh_expire_peer(padapter, sta_addr);
@@ -1787,7 +1791,7 @@ chbw_decision:
 				, pdvobj->padapters[i]->mlmeextpriv.cur_channel
 				, pdvobj->padapters[i]->mlmeextpriv.cur_bwmode
 				, pdvobj->padapters[i]->mlmeextpriv.cur_ch_offset
-				, ht_option);
+				, ht_option, 0);
 		}
 	}
 #endif /* defined(CONFIG_IOCTL_CFG80211) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)) */
@@ -1931,7 +1935,8 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 	if (!MLME_IS_AP(padapter) && !MLME_IS_MESH(padapter))
 		return _FAIL;
 
-	if (len < 0 || len > MAX_IE_SZ)
+
+	if (len > MAX_IE_SZ)
 		return _FAIL;
 
 	pbss_network->IELength = len;
@@ -4502,12 +4507,14 @@ static u8 rtw_ap_ch_specific_chk(_adapter *adapter, u8 ch, u8 *bw, u8 *offset, c
 	RT_CHANNEL_INFO *chset = adapter_to_chset(adapter);
 	u8 ret = _SUCCESS;
 
+	// ignore reg domain check
+#if 0
 	if (rtw_chset_search_ch(chset, ch) < 0) {
 		RTW_WARN("%s ch:%u doesn't fit in chplan\n", caller, ch);
 		ret = _FAIL;
 		goto exit;
 	}
-
+#endif
 	rtw_adjust_chbw(adapter, ch, bw, offset);
 
 	if (!rtw_get_offset_by_chbw(ch, *bw, offset)) {
@@ -4588,7 +4595,6 @@ static bool rtw_ap_choose_chbw(_adapter *adapter, u8 sel_ch, u8 max_bw, u8 cur_c
 					, RTW_CHF_DFS
 					, cur_ch
 					, rfctl->ch_sel_same_band_prefer, mesh_only);
-		goto exit;
 	}
 
 exit:
@@ -5217,10 +5223,10 @@ u16 rtw_ap_parse_sta_security_ie(_adapter *adapter, struct sta_info *sta, struct
 				status = WLAN_STATUS_ROBUST_MGMT_FRAME_POLICY_VIOLATION;
 
 			if (!sta->wpa2_group_cipher)
-				status = WLAN_STATUS_INVALID_GROUP_CIPHER;
+				status = WLAN_STATUS_GROUP_CIPHER_NOT_VALID;
 
 			if (!sta->wpa2_pairwise_cipher)
-				status = WLAN_STATUS_INVALID_PAIRWISE_CIPHER;
+				status = WLAN_STATUS_PAIRWISE_CIPHER_NOT_VALID;
 		} else
 			status = WLAN_STATUS_INVALID_IE;
 
@@ -5237,10 +5243,10 @@ u16 rtw_ap_parse_sta_security_ie(_adapter *adapter, struct sta_info *sta, struct
 			sta->wpa_pairwise_cipher = pairwise_cipher & sec->wpa_pairwise_cipher;
 
 			if (!sta->wpa_group_cipher)
-				status = WLAN_STATUS_INVALID_GROUP_CIPHER;
+				status = WLAN_STATUS_GROUP_CIPHER_NOT_VALID;
 
 			if (!sta->wpa_pairwise_cipher)
-				status = WLAN_STATUS_INVALID_PAIRWISE_CIPHER;
+				status = WLAN_STATUS_PAIRWISE_CIPHER_NOT_VALID;
 		} else
 			status = WLAN_STATUS_INVALID_IE;
 
@@ -5469,3 +5475,4 @@ exit:
 	return;
 }
 #endif /* CONFIG_AP_MODE */
+

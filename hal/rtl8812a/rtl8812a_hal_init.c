@@ -18,7 +18,8 @@
 #include <rtl8812a_hal.h>
 #ifdef CONFIG_RTL8812A
 #include "hal8812a_fw.h"
-#else
+#endif
+#ifdef CONFIG_RTL8821A
 #include "hal8821a_fw.h"
 #endif
 /* -------------------------------------------------------------------------
@@ -517,11 +518,16 @@ FirmwareDownload8812(
 		#ifdef CONFIG_WOWLAN
 			if (pwrpriv->wowlan_mode) {
 #ifdef CONFIG_RTL8812A
+				if (IS_HARDWARE_TYPE_8812(Adapter)) {
 				pFirmware->szFwBuffer = array_mp_8812a_fw_wowlan;
 				pFirmware->ulFwLength = array_length_mp_8812a_fw_wowlan;
-#else
+				}
+#endif
+#ifdef CONFIG_RTL8821A
+				if (IS_HARDWARE_TYPE_8821(Adapter)) {
 				pFirmware->szFwBuffer = array_mp_8821a_fw_wowlan;
 				pFirmware->ulFwLength = array_length_mp_8821a_fw_wowlan;
+				}
 #endif
 				RTW_INFO("%s fw:%s, size: %d\n", __func__, "WoWLAN", pFirmware->ulFwLength);
 
@@ -531,11 +537,16 @@ FirmwareDownload8812(
 		#ifdef CONFIG_AP_WOWLAN
 			if (pwrpriv->wowlan_ap_mode) {
 #ifdef CONFIG_RTL8812A
+				if (IS_HARDWARE_TYPE_8812(Adapter)) {
 				pFirmware->szFwBuffer = array_mp_8812a_fw_ap;
 				pFirmware->ulFwLength = array_length_mp_8812a_fw_ap;
-#else
+				}
+#endif
+#ifdef CONFIG_RTL8821A
+				if (IS_HARDWARE_TYPE_8821(Adapter)) {
 				pFirmware->szFwBuffer = array_mp_8821a_fw_ap;
 				pFirmware->ulFwLength = array_length_mp_8821a_fw_ap;
+				}
 #endif
 
 				RTW_INFO("%s fw: %s, size: %d\n", __func__, "AP_WoWLAN", pFirmware->ulFwLength);
@@ -546,11 +557,16 @@ FirmwareDownload8812(
 			if (pHalData->EEPROMBluetoothCoexist == _TRUE) {
 
 #ifdef CONFIG_RTL8812A
+				if (IS_HARDWARE_TYPE_8812(pAdapter)) {
 				pFirmware->szFwBuffer = array_mp_8812a_fw_nic_bt;
 				pFirmware->ulFwLength = array_length_mp_8812a_fw_nic_bt;
-#else
+				}
+#endif
+#ifdef CONFIG_RTL8821A
+				if (IS_HARDWARE_TYPE_8821(pAdapter)) {
 				pFirmware->szFwBuffer = array_mp_8821a_fw_nic_bt;
 				pFirmware->ulFwLength = array_length_mp_8821a_fw_nic_bt;
+				}
 #endif
 
 				RTW_INFO("%s fw:%s, size: %d\n", __FUNCTION__, "NIC-BTCOEX", pFirmware->ulFwLength);
@@ -559,11 +575,16 @@ FirmwareDownload8812(
 			{
 
 #ifdef CONFIG_RTL8812A
+				if (IS_HARDWARE_TYPE_8812(Adapter)) {
 				pFirmware->szFwBuffer = array_mp_8812a_fw_nic;
 				pFirmware->ulFwLength = array_length_mp_8812a_fw_nic;
-#else
+				}
+#endif
+#ifdef CONFIG_RTL8821A
+				if (IS_HARDWARE_TYPE_8821(Adapter)) {
 				pFirmware->szFwBuffer = array_mp_8821a_fw_nic;
 				pFirmware->ulFwLength = array_length_mp_8821a_fw_nic;
+				}
 #endif
 
 				RTW_INFO("%s fw:%s, size: %d\n", __FUNCTION__, "NIC", pFirmware->ulFwLength);
@@ -753,7 +774,6 @@ int ReservedPage_Compare(PADAPTER Adapter, PRT_MP_FIRMWARE pFirmware, u32 BTPatc
 
 	for (i = 0; i < lastBTsz; i++)
 		myBTFwBuffer[(BTPatchSize / 8) * 8 + i] = rtw_read8(Adapter, (0x144 + i));
-
 
 	for (i = 0; i < BTPatchSize; i++) {
 		if (myBTFwBuffer[i] != pFirmware->szFwBuffer[i]) {
@@ -3392,6 +3412,13 @@ static void read_chip_version_8812a(PADAPTER Adapter)
 	/* value32 = rtw_read32(Adapter, REG_GPIO_OUTSTS); */
 	pHalData->version_id.ROMVer = 0;	/* ROM code version. */
 
+	/* For multi-function consideration. Added by Roger, 2010.10.06. */
+	pHalData->MultiFunc = RT_MULTI_FUNC_NONE;
+	value32 = rtw_read32(Adapter, REG_MULTI_FUNC_CTRL);
+	pHalData->MultiFunc |= ((value32 & WL_FUNC_EN) ? RT_MULTI_FUNC_WIFI : 0);
+	pHalData->MultiFunc |= ((value32 & BT_FUNC_EN) ? RT_MULTI_FUNC_BT : 0);
+	pHalData->PolarityCtl = ((value32 & WL_HWPDN_SL) ? RT_POLARITY_HIGH_ACT : RT_POLARITY_LOW_ACT);
+
 	rtw_hal_config_rftype(Adapter);
 #if 1
 	dump_chip_info(pHalData->version_id);
@@ -3790,6 +3817,8 @@ SetBeamformRfMode_8812(
 	else
 		phy_set_bb_reg(Adapter, rTxPath_Jaguar, bMaskByte1, 0x11);
 }
+
+
 
 VOID
 SetBeamformEnter_8812(
@@ -5568,7 +5597,7 @@ u8 GetHalDefVar8812A(PADAPTER padapter, HAL_DEF_VARIABLE variable, void *pval)
 		break;
 
 	case HAL_DEF_RX_STBC:
-		*(u8 *)pval = 2;
+		*(u8 *)pval = 1;
 		break;
 
 	case HAL_DEF_EXPLICIT_BEAMFORMER:

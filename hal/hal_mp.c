@@ -30,7 +30,7 @@
 	#ifdef CONFIG_RTL8192E
 		#include <rtl8192e_hal.h>
 	#endif
-	#ifdef CONFIG_RTL8814A
+	#if defined(CONFIG_RTL8814A) || defined(CONFIG_RTL8812A)
 		#include <rtl8814a_hal.h>
 	#endif
 	#if defined(CONFIG_RTL8812A) || defined(CONFIG_RTL8821A)
@@ -111,6 +111,36 @@ void hal_mpt_SwitchRfSetting(PADAPTER	pAdapter)
 	}
 }
 
+s32 hal_mpt_SetPowerTracking(PADAPTER padapter, u8 enable)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+	struct dm_struct		*pDM_Odm = &(pHalData->odmpriv);
+
+
+	if (!netif_running(padapter->pnetdev)) {
+		return _FAIL;
+	}
+
+	if (check_fwstate(&padapter->mlmepriv, WIFI_MP_STATE) == _FALSE) {
+		return _FAIL;
+	}
+	if (enable)
+		pDM_Odm->rf_calibrate_info.txpowertrack_control = _TRUE;
+	else
+		pDM_Odm->rf_calibrate_info.txpowertrack_control = _FALSE;
+
+	return _SUCCESS;
+}
+
+void hal_mpt_GetPowerTracking(PADAPTER padapter, u8 *enable)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+	struct dm_struct		*pDM_Odm = &(pHalData->odmpriv);
+
+
+	*enable = pDM_Odm->rf_calibrate_info.txpowertrack_control;
+}
+
 
 void hal_mpt_CCKTxPowerAdjust(PADAPTER Adapter, BOOLEAN bInCH14)
 {
@@ -151,7 +181,7 @@ void hal_mpt_CCKTxPowerAdjust(PADAPTER Adapter, BOOLEAN bInCH14)
 	} else if (IS_HARDWARE_TYPE_8723D(Adapter)) {
 		/* 2.4G CCK TX DFIR */
 		/* 2016.01.20 Suggest from RS BB mingzhi*/
-		if ((u1Channel == 14)) {
+		if (u1Channel == 14) {
 			phy_set_bb_reg(Adapter, rCCK0_TxFilter2, bMaskDWord, 0x0000B81C);
 			phy_set_bb_reg(Adapter, rCCK0_DebugPort, bMaskDWord, 0x00000000);
 			phy_set_bb_reg(Adapter, 0xAAC, bMaskDWord, 0x00003667);
@@ -578,6 +608,7 @@ VOID mpt_ToggleIG_8814A(PADAPTER	pAdapter)
 	u1Byte Path = 0;
 	u4Byte IGReg = rA_IGI_Jaguar, IGvalue = 0;
 
+	/* // kimocoder: Disable below as it's not in use.
 	for (Path; Path <= RF_PATH_D; Path++) {
 		switch (Path) {
 		case RF_PATH_B:
@@ -593,11 +624,12 @@ VOID mpt_ToggleIG_8814A(PADAPTER	pAdapter)
 			IGReg = rA_IGI_Jaguar;
 			break;
 		}
+	*/
 
-		IGvalue = phy_query_bb_reg(pAdapter, IGReg, bMaskByte0);
-		phy_set_bb_reg(pAdapter, IGReg, bMaskByte0, IGvalue + 2);
-		phy_set_bb_reg(pAdapter, IGReg, bMaskByte0, IGvalue);
-	}
+	IGvalue = phy_query_bb_reg(pAdapter, IGReg, bMaskByte0);
+	phy_set_bb_reg(pAdapter, IGReg, bMaskByte0, IGvalue + 2);
+	phy_set_bb_reg(pAdapter, IGReg, bMaskByte0, IGvalue);
+
 }
 
 VOID mpt_SetRFPath_8814A(PADAPTER	pAdapter)
@@ -832,7 +864,7 @@ VOID mpt_SetRFPath_8814A(PADAPTER	pAdapter)
 	mpt_ToggleIG_8814A(pAdapter);
 }
 #endif /* CONFIG_RTL8814A */
-#if defined(CONFIG_RTL8814A) || defined(CONFIG_RTL8822B) || defined(CONFIG_RTL8821C)
+#if defined(CONFIG_RTL8814A) || defined(CONFIG_RTL8822B) || defined(CONFIG_RTL8821C) || defined(CONFIG_RTL8812A)
 VOID
 mpt_SetSingleTone_8814A(
 	IN	PADAPTER	pAdapter,
@@ -884,7 +916,7 @@ mpt_SetSingleTone_8814A(
 
 		phy_set_bb_reg(pAdapter, rCCAonSec_Jaguar, BIT1, 0x1); /*/ Disable CCA*/
 
-		for (StartPath; StartPath <= EndPath; StartPath++) {
+		for (; StartPath <= EndPath; StartPath++) {
 			phy_set_rf_reg(pAdapter, StartPath, RF_AC_Jaguar, 0xF0000, 0x2); /*/ Tx mode: RF0x00[19:16]=4'b0010 */
 			phy_set_rf_reg(pAdapter, StartPath, RF_AC_Jaguar, 0x1F, 0x0); /*/ Lowest RF gain index: RF_0x0[4:0] = 0*/
 
@@ -922,7 +954,7 @@ mpt_SetSingleTone_8814A(
 			EndPath = RF_PATH_D;
 			break;
 		}
-		for (StartPath; StartPath <= EndPath; StartPath++)
+		for (; StartPath <= EndPath; StartPath++)
 			phy_set_rf_reg(pAdapter, StartPath, lna_low_gain_3, BIT1, 0x0); /* RF LO disabled */
 
 		phy_set_bb_reg(pAdapter, rCCAonSec_Jaguar, BIT1, 0x0); /* Enable CCA*/
@@ -1992,8 +2024,7 @@ static	VOID mpt_StartOfdmContTx(
 	pMptCtx->bOfdmContTx = TRUE;
 }	/* mpt_StartOfdmContTx */
 
-
-#if defined(CONFIG_RTL8814A) || defined(CONFIG_RTL8821B) || defined(CONFIG_RTL8822B) || defined(CONFIG_RTL8821C)
+#if defined(CONFIG_MP_VHT_HW_TX_MODE)
 /* for HW TX mode */
 void mpt_ProSetPMacTx(PADAPTER	Adapter)
 {

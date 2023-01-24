@@ -1169,7 +1169,7 @@ PHY_SetTxPowerLevel8814(
 						   		{MGN_VHT3SS_MCS4, MGN_VHT3SS_MCS5, MGN_VHT3SS_MCS6, MGN_VHT3SS_MCS7}, 
 						 		{MGN_VHT3SS_MCS8, MGN_VHT3SS_MCS9, 0, 0}};	
 
-	
+
 	for( path = RF_PATH_A; path <= RF_PATH_D; ++path )
 	{
 			phy_set_tx_power_level_by_path(Adapter, Channel, (u8)path);
@@ -1183,7 +1183,7 @@ PHY_SetTxPowerLevel8814(
 }
 
 /**************************************************************************************************************
- *   Description: 
+ *   Description:
  *       The low-level interface to get the FINAL Tx Power Index , called  by both MP and Normal Driver.
  *
  *                                                                                    <20120830, Kordan>
@@ -1192,8 +1192,8 @@ u8
 PHY_GetTxPowerIndex8814A(
 	IN	PADAPTER		pAdapter,
 	IN	enum rf_path		RFPath,
-	IN	u8			Rate,	
-	IN	u8			BandWidth,	
+	IN	u8			Rate,
+	IN	u8			BandWidth,
 	IN	u8			Channel,
 	struct txpwr_idx_comp *tic
 	)
@@ -1222,10 +1222,10 @@ PHY_GetTxPowerIndex8814A(
 		tpt_offset = PHY_GetTxPowerTrackingOffset(pAdapter, RFPath, Rate);
 
 		powerDiffByRate = powerDiffByRate > limit ? limit : powerDiffByRate;
-		RTW_INFO("Rate-0x%x: (TxPower, PowerDiffByRate Path-%c) = (0x%X, %d)\n", Rate, ((RFPath==0)?'A':(RFPath==1)?'B':(RFPath==2)?'C':'D'), txPower, powerDiffByRate);
+		/*RTW_INFO("Rate-0x%x: (TxPower, PowerDiffByRate Path-%c) = (0x%X, %d)\n", Rate, ((RFPath==0)?'A':(RFPath==1)?'B':(RFPath==2)?'C':'D'), txPower, powerDiffByRate);*/
 
 		txPower += powerDiffByRate;
-
+		
 		//txPower += PHY_GetTxPowerTrackingOffset( pAdapter, RFPath, Rate );
 	#if 0 //todo ?
 	#if CCX_SUPPORT
@@ -1246,12 +1246,12 @@ PHY_GetTxPowerIndex8814A(
 	if(txPower > hal_spec->txgi_max)
 		txPower = hal_spec->txgi_max;
 
-	//if (Adapter->registrypriv.mp_mode==0 &&
+	//if (Adapter->registrypriv.mp_mode==0 && 
 		//(pHalData->bautoload_fail_flag || pHalData->EfuseMap[EFUSE_INIT_MAP][EEPROM_TX_PWR_INX_JAGUAR] == 0xFF))
 		//txPower = 0x12;
 
-	RTW_INFO("Final Tx Power(RF-%c, Channel: %d) = %d(0x%X)\n", ((RFPath==0)?'A':(RFPath==1)?'B':(RFPath==2)?'C':'D'), Channel,
-		txPower, txPower);
+	/*RTW_INFO("Final Tx Power(RF-%c, Channel: %d) = %d(0x%X)\n", ((RFPath==0)?'A':(RFPath==1)?'B':(RFPath==2)?'C':'D'), Channel,
+		txPower, txPower);*/
 
 	return (u8) txPower;
 }
